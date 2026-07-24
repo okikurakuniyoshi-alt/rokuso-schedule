@@ -60,6 +60,21 @@ const api = {
 };
 
 const server = http.createServer((req,res)=>{
+  // 集計だけを返す公開エンドポイント（生徒アプリ等の外部表示用。回答者名は含めない・CORS許可・60秒キャッシュ）
+  if(req.method==='GET' && req.url.startsWith('/public/summary')){
+    const q = new URL(req.url,'http://x').searchParams;
+    const ev = db.events[q.get('e')||''];
+    const cors = {'Content-Type':'application/json','Access-Control-Allow-Origin':'*','Cache-Control':'public, max-age=60'};
+    if(!ev){ res.writeHead(404,cors); return res.end(JSON.stringify({error:'not found'})); }
+    const list = db.responses[ev.id]||[];
+    const dates = (ev.dates||[]).map(d=>{
+      let o=0,s=0,x=0;
+      list.forEach(r=>{ const v=(r.marks||{})[d]; if(v==='○')o++; else if(v==='△')s++; else if(v==='×')x++; });
+      return {date:d, o, s, x};
+    });
+    res.writeHead(200,cors);
+    return res.end(JSON.stringify({name:ev.name, tri:!!ev.tri, respCount:list.length, dates}));
+  }
   if(req.method==='POST' && req.url==='/api/call'){
     let body='';
     req.on('data',c=>{ body+=c; if(body.length>2000000) req.destroy(); });
