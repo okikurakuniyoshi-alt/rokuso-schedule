@@ -249,6 +249,18 @@ const server = http.createServer((req,res)=>{
     res.writeHead(200,cors);
     return res.end(JSON.stringify({name:ev.name, tri:!!ev.tri, respCount:list.length, dates}));
   }
+
+  // 回答者名と○△×つきで返す公開エンドポイント（サポーター選定アプリ用）。
+  // イベントページ自体が回答者名と○△×を公開表示しているため、同等の情報のみ返す（editKey等は含めない）。CORS許可・60秒キャッシュ。
+  if(req.method==='GET' && req.url.startsWith('/public/event')){
+    const q = new URL(req.url,'http://x').searchParams;
+    const ev = db.events[q.get('e')||''];
+    const cors = {'Content-Type':'application/json','Access-Control-Allow-Origin':'*','Cache-Control':'public, max-age=60'};
+    if(!ev){ res.writeHead(404,cors); return res.end(JSON.stringify({error:'not found'})); }
+    const list = (db.responses[ev.id]||[]).map(r=>({name:r.name, marks:r.marks||{}}));
+    res.writeHead(200,cors);
+    return res.end(JSON.stringify({name:ev.name, desc:ev.desc||'', dates:ev.dates||[], tri:!!ev.tri, responses:list}));
+  }
   if(req.method==='POST' && req.url==='/api/call'){
     let body='';
     req.on('data',c=>{ body+=c; if(body.length>2000000) req.destroy(); });
