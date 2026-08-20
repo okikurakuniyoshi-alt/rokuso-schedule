@@ -9,7 +9,42 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const HTML = Buffer.from(HTML_B64, 'base64').toString('utf8');
+let HTML = Buffer.from(HTML_B64, 'base64').toString('utf8');
+
+// Googleカレンダー読込後に「予定あり」の時間帯を画面で確認できるようにする。
+// HTML本体は配布都合でbase64同梱のため、ここで小さなUI差分を注入する。
+HTML = HTML.replace(
+  '<div class="pill pill-idle" id="mk_busyinfo">まだ読み込んでいません（読み込まなくても作れます）</div>',
+  '<div class="pill pill-idle" id="mk_busyinfo">まだ読み込んでいません（読み込まなくても作れます）</div>'+
+  '<div id="mk_busylist" style="display:none;margin-top:10px;padding:12px 14px;border:1px solid #d7e9e2;border-radius:10px;background:#f7fbf9"></div>'
+);
+HTML = HTML.replace(
+  'function mkLoadBusy(){',
+  `function mkRenderBusy(){
+  var el=document.getElementById('mk_busylist'); if(!el) return;
+  if(!_busy){ el.style.display='none'; el.innerHTML=''; return; }
+  el.style.display='';
+  if(!_busy.length){ el.innerHTML='<b>読み込んだ予定</b><div class="note" style="margin-top:5px">この期間に「予定あり」の予定はありません。</div>'; return; }
+  var groups={}, order=[];
+  _busy.forEach(function(b){
+    var s=new Date(b.s), e=new Date(b.e);
+    var key=s.getFullYear()+'-'+String(s.getMonth()+1).padStart(2,'0')+'-'+String(s.getDate()).padStart(2,'0');
+    if(!groups[key]){ groups[key]=[]; order.push(key); }
+    groups[key].push(String(s.getHours()).padStart(2,'0')+':'+String(s.getMinutes()).padStart(2,'0')+'〜'+String(e.getHours()).padStart(2,'0')+':'+String(e.getMinutes()).padStart(2,'0'));
+  });
+  el.innerHTML='<b>Googleカレンダーの予定あり時間</b><div class="note" style="margin:3px 0 9px">予定名は表示せず、空き枠から除外する時間だけ表示します。</div>'+
+    order.map(function(d){ var x=new Date(d+'T00:00:00'), wd=['日','月','火','水','木','金','土'][x.getDay()]; return '<div style="padding:6px 0;border-top:1px solid #e3eee9"><b>'+esc((x.getMonth()+1)+'/'+x.getDate()+'（'+wd+'）')+'</b>　'+esc(groups[d].join('、'))+'</div>'; }).join('');
+}
+function mkLoadBusy(){`
+);
+HTML = HTML.replace(
+  "info.className='pill pill-ok'; info.innerHTML='✓ 読み込みました（この期間の予定 <b>'+_busy.length+'件</b>）。重なる時間は自動で外します';",
+  "info.className='pill pill-ok'; info.innerHTML='✓ 読み込みました（この期間の予定 <b>'+_busy.length+'件</b>）。重なる時間は自動で外します'; mkRenderBusy();"
+);
+HTML = HTML.replace(
+  "info.className='pill pill-ok'; info.innerHTML='\\u2713 Google\\u30ab\\u30ec\\u30f3\\u30c0\\u30fc\\u3092\\u8aad\\u307f\\u8fbc\\u307f\\u307e\\u3057\\u305f\\uff08\\u3053\\u306e\\u671f\\u9593\\u306e\\u4e88\\u5b9a <b>'+_busy.length+'\\u4ef6</b>\\uff09\\u3002\\u91cd\\u306a\\u308b\\u6642\\u9593\\u306f\\u81ea\\u52d5\\u3067\\u5916\\u3057\\u307e\\u3059';",
+  "info.className='pill pill-ok'; info.innerHTML='\\u2713 Google\\u30ab\\u30ec\\u30f3\\u30c0\\u30fc\\u3092\\u8aad\\u307f\\u8fbc\\u307f\\u307e\\u3057\\u305f\\uff08\\u3053\\u306e\\u671f\\u9593\\u306e\\u4e88\\u5b9a <b>'+_busy.length+'\\u4ef6</b>\\uff09\\u3002\\u91cd\\u306a\\u308b\\u6642\\u9593\\u306f\\u81ea\\u52d5\\u3067\\u5916\\u3057\\u307e\\u3059'; mkRenderBusy();"
+);
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data.json');
 
 function loadDB(){ try { return JSON.parse(fs.readFileSync(DATA_FILE,'utf8')); } catch(e){ return { adminPw:null, events:{}, responses:{} }; } }
