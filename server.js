@@ -349,5 +349,10 @@ const server = http.createServer((req,res)=>{
   res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
   res.end(HTML);
 });
+// ===== 安全網: 未処理例外/拒否/不正リクエストでプロセスを落とさない（クラッシュループ対策） =====
+process.on('uncaughtException', function(e){ try{ console.error('[uncaughtException]', (e&&e.stack)||e); }catch(_){} });
+process.on('unhandledRejection', function(e){ try{ console.error('[unhandledRejection]', (e&&e.stack)||e); }catch(_){} });
+server.on('clientError', function(err, socket){ try{ if(socket) socket.destroy(); }catch(_){} });
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, ()=>console.log('ろくそう日程調整 listening on '+PORT));
