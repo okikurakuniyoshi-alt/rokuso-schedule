@@ -18,6 +18,33 @@ HTML = HTML.replace(
   '<div class="pill pill-idle" id="mk_busyinfo">まだ読み込んでいません（読み込まなくても作れます）</div>'+
   '<div id="mk_busylist" style="display:none;margin-top:10px;padding:12px 14px;border:1px solid #d7e9e2;border-radius:10px;background:#f7fbf9"></div>'
 );
+// 出欠表: 名前の行（上）と日程の列（左）を常に見えるようにする（2026-09-12 オーナー「誰が丸なのか上に戻らないと分からない」）。
+// 表の枠に高さ上限を付けて縦スクロールも枠内で行い、sticky のヘッダー/左列が効くようにする。マウスを載せた列（人）は薄く色付け。
+HTML = HTML.replace(
+  '.grid-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;-webkit-overflow-scrolling:touch}',
+  '.grid-wrap{overflow:auto;max-height:calc(100vh - 150px);border:1px solid var(--line);border-radius:10px;-webkit-overflow-scrolling:touch}'+
+  ' thead th{z-index:2;box-shadow:0 1px 0 var(--line)} thead th:first-child{left:0;z-index:3} tbody th{box-shadow:1px 0 0 var(--line)}'+
+  ' .grid-wrap td.colhl,.grid-wrap thead th.colhl{background:#fff3c4 !important}'
+);
+HTML = HTML.replace(
+  '</body>',
+  `<script>
+(function(){
+  // 列ホバー: 同じ人の列とその名前を色付け（タッチ端末はタップで切替）
+  var last=null;
+  function clear(){ if(!last) return; last.forEach(function(c){ c.classList.remove('colhl'); }); last=null; }
+  function hl(cell){
+    var tr=cell.parentNode, tbl=cell.closest('table'); if(!tr||!tbl) return;
+    var idx=Array.prototype.indexOf.call(tr.children, cell); if(idx<1) return;
+    clear(); last=[];
+    tbl.querySelectorAll('tr').forEach(function(r){ var c=r.children[idx]; if(c){ c.classList.add('colhl'); last.push(c); } });
+  }
+  document.addEventListener('mouseover', function(e){ var c=e.target.closest('.grid-wrap td, .grid-wrap thead th'); if(c) hl(c); });
+  document.addEventListener('mouseleave', function(e){ if(e.target&&e.target.classList&&e.target.classList.contains('grid-wrap')) clear(); }, true);
+  document.addEventListener('touchstart', function(e){ var c=e.target.closest&&e.target.closest('.grid-wrap td, .grid-wrap thead th'); if(c){ if(last&&last.indexOf(c)>=0) clear(); else hl(c); } }, {passive:true});
+})();
+</script></body>`
+);
 HTML = HTML.replace(
   'function mkLoadBusy(){',
   `function mkRenderBusy(){
