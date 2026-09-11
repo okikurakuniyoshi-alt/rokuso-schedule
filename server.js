@@ -26,6 +26,11 @@ HTML = HTML.replace(
   ' thead th{z-index:2;box-shadow:0 1px 0 var(--line)} thead th:first-child{left:0;z-index:3} tbody th{box-shadow:1px 0 0 var(--line)}'+
   ' .grid-wrap td.colhl,.grid-wrap thead th.colhl{background:#fff3c4 !important}'
 );
+// ヘッダー行（参加者名）が <thead> に入っておらず、上固定のCSS（thead th）が効かなかったので thead/tbody で囲む
+HTML = HTML.replace(
+  `'<div class="grid-wrap"><table>'+gridHead+gridBody+'</table></div>'`,
+  `'<div class="grid-wrap"><table><thead>'+gridHead+'</thead><tbody>'+gridBody+'</tbody></table></div>'`
+);
 HTML = HTML.replace(
   '</body>',
   `<script>
