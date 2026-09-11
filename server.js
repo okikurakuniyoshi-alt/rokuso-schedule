@@ -53,6 +53,34 @@ let db = loadDB();
 function uid(){ return Math.random().toString(36).slice(2,10); }
 function requireAdmin(pw){ if(!db.adminPw || String(pw)!==String(db.adminPw)) throw new Error('管理者認証が必要です。再ログインしてください。'); }
 
+// ===== 連絡事項の自動非表示（2026-09-12 オーナー指示「期日が終えたら、この文は消して」） =====
+// 連絡文に書かれた日付（9/13、9月13日 など）のうち最も遅い日を「期日」とし、その日が過ぎたら一覧に出さない。
+// 日付が書かれていない連絡は、投稿日以降で最初の候補日を期日にする。データは消さず、api_getEvent の返却時に note を空にするだけ。
+function jstToday(){ return new Date(Date.now()+9*3600000).toISOString().slice(0,10); }
+function parseDatesIn(text, baseYear, baseMonth){
+  const out=[]; const re=/(\d{1,2})\s*[\/月]\s*(\d{1,2})/g; let m;
+  while((m=re.exec(String(text||'')))){
+    const mo=+m[1], d=+m[2]; if(mo<1||mo>12||d<1||d>31) continue;
+    let y=baseYear; if(mo<baseMonth-6) y=baseYear+1;                 // 投稿月より半年以上前の月は翌年扱い（12月に1/17と書く等）
+    out.push(y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0'));
+  }
+  return out;
+}
+function noteExpiry(note, noteAt, dates){
+  const base=String(noteAt||'').slice(0,10); if(!/^\d{4}-\d{2}-\d{2}$/.test(base)) return null;
+  const by=+base.slice(0,4), bm=+base.slice(5,7);
+  const inNote=parseDatesIn(note, by, bm);
+  if(inNote.length) return inNote.sort().slice(-1)[0];
+  const cand=(dates||[]).map(s=>parseDatesIn(s, by, bm)[0]).filter(Boolean).filter(d=>d>=base).sort();
+  return cand.length?cand[0]:null;
+}
+function hideExpiredNote(r, ev){
+  if(!r || !r.note) return r;
+  const exp=noteExpiry(r.note, r.noteAt, ev.dates);
+  if(exp && jstToday()>exp) return Object.assign({}, r, { note:'', noteAt:'' });
+  return r;
+}
+
 const api = {
   api_isAdminSet(){ return !!db.adminPw; },
   api_setupAdmin(pw){
@@ -82,7 +110,7 @@ const api = {
   },
   api_deleteEvent(pw, id){ requireAdmin(pw); delete db.events[id]; delete db.responses[id]; saveDB(db); return {ok:true}; },
   api_getEvent(id){ const ev=db.events[id]; if(!ev) return null;
-    const pub=Object.assign({}, ev, { responses: db.responses[id]||[] });
+    const pub=Object.assign({}, ev, { responses: (db.responses[id]||[]).map(r=>hideExpiredNote(r, ev)) });   // 期日を過ぎた連絡事項は返さない
     delete pub.editKey; delete pub.icsUrl;   // 秘匿項目は返さない
     return pub; },
   // ===== 空き時間ページ（どなたでも作成可・管理者イベントとは別扱い） =====
